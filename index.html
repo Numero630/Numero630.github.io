@@ -1,0 +1,254 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Relámpago</title>
+    <style>
+        
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #ccffd6;
+            padding: 50px;
+            transition: background-color 0.5s ease;
+        }
+        .container {
+            display: grid;
+            grid-template-columns: repeat(10, 1fr);
+            gap: 10px;
+            max-width: 600px;
+            margin: 0 top;
+        }
+        h1, h2 {
+            text-align: center;
+            color: #444;
+            animation: fadeIn 1.5s ease-in-out;
+        }
+        .button {
+            padding: 20px;
+            border: none;
+            background-color: rgb(172, 174, 57);
+            color: rgb(255, 255, 255);
+            font-size: 18px;
+            cursor: pointer;
+            border-radius: 5px;
+            transition: transform 0.3s, background-color 0.3s;
+        }
+        .button:hover {
+            transform: scale(1.1);
+        }
+        .button.orange { background-color: orange; }
+        .button.red { background-color: red; }
+        .button.green { background-color: rgb(43, 143, 43); }
+        .number-display {
+            font-size: 290px;
+            text-align: center;
+            margin-top: 100px;
+            color: #444;
+        }
+        .fullscreen-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.8);
+            color: white;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-size: 100px;
+            z-index: 1000;
+            visibility: hidden;
+        }
+        .login-form {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+        .login-form input {
+            padding: 10px;
+            margin: 5px;
+            font-size: 16px;
+        }
+        .login-form button {
+            padding: 10px 20px;
+            font-size: 16px;
+            cursor: pointer;
+        }
+        .admin-controls {
+            text-align: center;
+            margin-top: 20px;
+        }
+        .admin-controls button {
+            padding: 10px 20px;
+            font-size: 16px;
+            cursor: pointer;
+            background-color: #ff0000;
+            color: white;
+            border: none;
+            border-radius: 5px;
+        }
+        .admin-controls button:hover {
+            background-color: #cc0000;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+    </style>
+</head>
+<body>
+    <h1>Lístado de números</h1>
+    <h2><span id="fecha-actualizada"></span></h2>
+
+    <div class="login-form" id="loginForm">
+        <input type="text" id="username" placeholder="Nombre de usuario">
+        <input type="password" id="password" placeholder="Contraseña">
+        <button onclick="login()">Iniciar Sesión</button>
+    </div>
+
+    <div class="container" id="numberList"></div>
+    <div class="admin-controls" id="adminControls" style="display: none;">
+        <button onclick="reestablecerNumeros()">Restablecer Números</button>
+    </div>
+    <button id="addButton" onclick="irAPaginaDos()" disabled>Agrega el número</button>
+    <div id="numero" class="number-display"></div>
+    <div id="fullscreenOverlay" class="fullscreen-overlay" onclick="ocultarOverlay()"></div>
+    <script>
+        let isLoggedIn = false;
+        let autoRefreshInterval;
+
+        function obtenerFechaActualizada() {
+            const hoy = new Date();
+            const opciones = { year: 'numeric', month: 'long', day: 'numeric' };
+            return hoy.toLocaleDateString('es-ES', opciones);
+        }
+
+        document.addEventListener('DOMContentLoaded', function() {
+            document.getElementById('fecha-actualizada').textContent = obtenerFechaActualizada();
+
+            const numberList = document.getElementById('numberList');
+
+            for (let i = 0; i <= 999; i++) {
+                const button = document.createElement('button');
+                button.innerText = `${String(i).padStart(3, '0')} - 3 disponibles`;
+                button.classList.add('button', 'green');
+                button.dataset.index = i;
+                let clickCount = localStorage.getItem(`clickCount_${i}`) || 0;
+
+                button.addEventListener('click', () => {
+                    if (!isLoggedIn) {
+                        alert("Debes iniciar sesión para realizar esta acción.");
+                        return;
+                    }
+                    clickCount++;
+                    localStorage.setItem(`clickCount_${i}`, clickCount);
+                    actualizarEstadoBoton(button, clickCount);
+                });
+
+                actualizarEstadoBoton(button, clickCount);
+                numberList.appendChild(button);
+            }
+
+            
+            const urlParams = new URLSearchParams(window.location.search);
+            const numero = urlParams.get('numero');
+            if (numero) {
+                localStorage.setItem('numeroElegido', numero);
+                document.getElementById('numero').innerText = 'Número de hoy: ' + numero;
+                mostrarOverlay(numero);
+            }
+
+            // Mostrar número guardado en local storage para usuarios
+            const numeroGuardado = localStorage.getItem('numeroElegido');
+            if (numeroGuardado) {
+                document.getElementById('numero').innerText = 'Ganador ' + numeroGuardado;
+            }
+
+            // Recarga la página cada 10 segundos solo si el usuario no está logueado
+            if (!isLoggedIn) {
+                autoRefreshInterval = setInterval(function() {
+                    location.reload();
+                }, 20000);
+            }
+        });
+
+        function actualizarEstadoBoton(button, clickCount) {
+            switch (clickCount % 4) {
+                case 1:
+                    button.className = 'button yellow';
+                    button.innerText = `${String(button.dataset.index).padStart(3, '0')} - 2 disponibles`;
+                    break;
+                case 2:
+                    button.className = 'button orange';
+                    button.innerText = `${String(button.dataset.index).padStart(3, '0')} - 1 disponible`;
+                    break;
+                case 3:
+                    button.className = 'button red';
+                    button.innerText = `${String(button.dataset.index).padStart(3, '0')} - No disponible`;
+                    break;
+                default:
+                    button.className = 'button green';
+                    button.innerText = `${String(button.dataset.index).padStart(3, '0')} - 3 disponibles`;
+            }
+        }
+
+        function login() {
+            const username = document.getElementById('username').value;
+            const password = document.getElementById('password').value;
+
+            //  lógica de autenticación.
+            if (username === "admin" && password === "password") {
+                isLoggedIn = true;
+                localStorage.setItem('isAdmin', 'true');
+                document.getElementById('loginForm').style.display = 'none';
+                document.getElementById('addButton').disabled = false;
+                document.getElementById('adminControls').style.display = 'block';
+
+                // Detener la recarga automática
+                clearInterval(autoRefreshInterval);
+
+                // Mostrar número guardado en local storage
+                const numeroGuardado = localStorage.getItem('numeroElegido');
+                if (numeroGuardado) {
+                    document.getElementById('numero').innerText = 'Ganador ' + numeroGuardado;
+                }
+            } else {
+                alert("Nombre de usuario o contraseña incorrectos");
+            }
+        }
+
+        function reestablecerNumeros() {
+            if (isLoggedIn) {
+                for (let i = 0; i <= 999; i++) {
+                    localStorage.removeItem(`clickCount_${i}`);
+                }
+                localStorage.removeItem('numeroElegido');
+                location.reload();
+            } else {
+                alert("Debes iniciar sesión para realizar esta acción.");
+            }
+        }
+
+        function irAPaginaDos() {
+            window.location.href = 'pagina_dos.html';
+        }
+
+        function mostrarOverlay(numero) {
+            const overlay = document.getElementById('fullscreenOverlay');
+            overlay.innerText = numero;
+            overlay.style.visibility = 'visible';
+        }
+
+        function ocultarOverlay() {
+            const overlay = document.getElement
+            function ocultarOverlay() {
+            const overlay = document.getElementById('fullscreenOverlay');
+            overlay.style.visibility = 'hidden';
+        }
+    }
+    </script>
+</body>
+</html>
